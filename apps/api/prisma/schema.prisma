@@ -1,0 +1,262 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  DOCTOR
+  PATIENT
+}
+
+enum SlotStatus {
+  FREE
+  HELD
+  BOOKED
+  // Outside the doctor's current schedule, kept only because old bookings reference it.
+  BLOCKED
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUND_PENDING
+  REFUNDED
+}
+
+enum Channel {
+  CHAT
+  VOICE
+  PHONE
+}
+
+enum SessionOutcome {
+  IN_PROGRESS
+  BOOKED
+  RESCHEDULED
+  CANCELLED
+  FAQ_ANSWERED
+  HANDOFF
+  ABANDONED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         Role
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  doctor  Doctor?
+  patient Patient?
+
+  @@map("users")
+}
+
+model Doctor {
+  id             String   @id @default(cuid())
+  userId         String?  @unique @map("user_id")
+  name           String
+  specialization String
+  feeInr         Int      @map("fee_inr")
+  slotMinutes    Int      @default(30) @map("slot_minutes")
+  bio            String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user         User?                @relation(fields: [userId], references: [id])
+  workingHours DoctorWorkingHours[]
+  leaves       DoctorLeave[]
+  slots        Slot[]
+  bookings     Booking[]
+
+  @@index([specialization])
+  @@map("doctors")
+}
+
+// One row per shift, so a doctor can work 09:00-13:00 and 17:00-20:00 on the same day.
+model DoctorWorkingHours {
+  id        String @id @default(cuid())
+  doctorId  String @map("doctor_id")
+  weekday   Int // 0 = Sunday ... 6 = Saturday, in the clinic's timezone
+  startTime String @map("start_time") // "HH:mm"
+  endTime   String @map("end_time") // "HH:mm"
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, weekday, startTime])
+  @@map("doctor_working_hours")
+}
+
+model DoctorLeave {
+  id        String   @id @default(cuid())
+  doctorId  String   @map("doctor_id")
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, startDate])
+  @@map("doctor_leaves")
+}
+
+model Slot {
+  id        String     @id @default(cuid())
+  doctorId  String     @map("doctor_id")
+  startTime DateTime   @map("start_time")
+  endTime   DateTime   @map("end_time")
+  status    SlotStatus @default(FREE)
+  heldUntil DateTime?  @map("held_until")
+  heldBy    String?    @map("held_by") // holder key (chat session) that owns the hold
+
+  doctor   Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  // Makes slot generation idempotent: re-running the job cannot create duplicates.
+  @@unique([doctorId, startTime])
+  @@index([doctorId, status, startTime])
+  @@index([status, heldUntil])
+  @@map("slots")
+}
+
+model Patient {
+  id        String   @id @default(cuid())
+  userId    String?  @unique @map("user_id")
+  name      String
+  phone     String   @unique
+  email     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user     User?     @relation(fields: [userId], references: [id])
+  bookings Booking[]
+
+  @@map("patients")
+}
+
+// A partial unique index on (slot_id) WHERE status <> 'CANCELLED' is added in
+// the migration SQL. It is the last line of defence against double booking.
+model Booking {
+  id             String        @id @default(cuid())
+  slotId         String        @map("slot_id")
+  doctorId       String        @map("doctor_id")
+  patientId      String        @map("patient_id")
+  status         BookingStatus @default(PENDING_PAYMENT)
+  paymentStatus  PaymentStatus @default(PENDING) @map("payment_status")
+  channel        Channel       @default(CHAT)
+  feeInr         Int           @map("fee_inr") // fee at the time of booking
+  reason         String?
+  idempotencyKey String        @unique @map("idempotency_key")
+  cancelledAt    DateTime?     @map("cancelled_at")
+  cancelReason   String?       @map("cancel_reason")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  slot     Slot      @relation(fields: [slotId], references: [id])
+  doctor   Doctor    @relation(fields: [doctorId], references: [id])
+  patient  Patient   @relation(fields: [patientId], references: [id])
+  payments Payment[]
+
+  @@index([slotId])
+  @@index([patientId])
+  @@index([doctorId, createdAt])
+  @@index([status, createdAt])
+  @@map("bookings")
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  bookingId         String        @map("booking_id")
+  provider          String        @default("razorpay")
+  providerOrderId   String?       @unique @map("provider_order_id")
+  providerPaymentId String?       @map("provider_payment_id")
+  amountPaise       Int           @map("amount_paise")
+  currency          String        @default("INR")
+  status            PaymentStatus @default(PENDING)
+  idempotencyKey    String        @unique @map("idempotency_key")
+  linkUrl           String?       @map("link_url")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+  @@map("payments")
+}
+
+// Provider webhook deliveries we have already processed (webhooks are retried).
+model WebhookEvent {
+  id         String   @id // provider's event id
+  provider   String
+  type       String
+  receivedAt DateTime @default(now()) @map("received_at")
+
+  @@map("webhook_events")
+}
+
+model FaqDocument {
+  id        String                       @id @default(cuid())
+  title     String                       @unique
+  content   String
+  // 1024 dimensions: Titan v2, OpenAI text-embedding-3-small and Ollama
+  // mxbai-embed-large can all produce this size.
+  embedding Unsupported("vector(1024)")?
+  createdAt DateTime                     @default(now()) @map("created_at")
+
+  @@map("faq_documents")
+}
+
+model AgentSession {
+  id           String         @id @default(cuid())
+  threadId     String         @unique @map("thread_id")
+  patientId    String?        @map("patient_id")
+  channel      Channel        @default(CHAT)
+  transcript   Json           @default("[]")
+  latencyMs    Int            @default(0) @map("latency_ms")
+  inputTokens  Int            @default(0) @map("input_tokens")
+  outputTokens Int            @default(0) @map("output_tokens")
+  costUsd      Decimal        @default(0) @map("cost_usd") @db.Decimal(10, 6)
+  outcome      SessionOutcome @default(IN_PROGRESS)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@map("agent_sessions")
+}
+
+// Refunds and exceptions the agent paused on, waiting for an admin decision.
+model ApprovalRequest {
+  id         String         @id @default(cuid())
+  threadId   String         @map("thread_id")
+  bookingId  String?        @map("booking_id")
+  type       String // e.g. REFUND, LATE_CANCELLATION
+  summary    String
+  payload    Json           @default("{}")
+  status     ApprovalStatus @default(PENDING)
+  decidedBy  String?        @map("decided_by")
+  decidedAt  DateTime?      @map("decided_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  @@index([status, createdAt])
+  @@map("approval_requests")
+}
