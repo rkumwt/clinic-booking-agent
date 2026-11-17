@@ -193,6 +193,7 @@ describe('Booking service (e2e)', () => {
     it('creates a booking from a held slot', async () => {
       const slot = await pickSlot();
       const { booking, phone } = await book(slot.id);
+      expect(booking.reference).toMatch(/^BK-[A-Z2-9]{6}$/);
       expect(booking).toMatchObject({
         status: 'PENDING_PAYMENT',
         paymentStatus: 'PENDING',
@@ -266,6 +267,7 @@ describe('Booking service (e2e)', () => {
           doctorId: doctor.id,
           patientId: booking.patient.id,
           feeInr: 700,
+          reference: `BK-${newKey().slice(0, 6).toUpperCase()}`,
           idempotencyKey: newKey(),
         },
       });

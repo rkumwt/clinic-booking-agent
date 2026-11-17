@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { AuthUser, BookingStatus, ConfirmBookingInput, PhoneSchema } from '@clinic/shared';
 import { Prisma } from '@prisma/client';
+import { randomInt } from 'crypto';
 import { maskPhone } from '../common/mask';
 import { dayBoundsUtc } from '../common/time';
 import { ConfigService } from '@nestjs/config';
@@ -27,6 +28,19 @@ const BOOKING_VIEW = {
 export type BookingView = Prisma.BookingGetPayload<{ include: typeof BOOKING_VIEW }>;
 
 const ACTIVE: BookingStatus[] = ['PENDING_PAYMENT', 'CONFIRMED'];
+
+// No 0/O or 1/I, so a reference survives being read aloud or typed from memory.
+const REFERENCE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+export function newBookingReference(): string {
+  return `BK-${Array.from({ length: 6 }, () => REFERENCE_ALPHABET[randomInt(REFERENCE_ALPHABET.length)]).join('')}`;
+}
+
+/** Accepts "bk-7k4q2m", "BK 7K4Q2M" or "7K4Q2M" and returns "BK-7K4Q2M". */
+export function normaliseBookingReference(raw: string): string {
+  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^BK/, '');
+  return `BK-${cleaned}`;
+}
 
 function isUniqueViolation(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
@@ -51,6 +65,16 @@ export class BookingsService {
 
   async get(id: string): Promise<BookingView> {
     const booking = await this.prisma.booking.findUnique({ where: { id }, include: BOOKING_VIEW });
+    if (!booking) throw new NotFoundException('Booking not found');
+    return booking;
+  }
+
+  /** Looks a booking up the way a patient quotes it: by its short reference. */
+  async getByReference(reference: string): Promise<BookingView> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { reference: normaliseBookingReference(reference) },
+      include: BOOKING_VIEW,
+    });
     if (!booking) throw new NotFoundException('Booking not found');
     return booking;
   }
@@ -108,6 +132,7 @@ export class BookingsService {
 
         return tx.booking.create({
           data: {
+            reference: newBookingReference(),
             slotId: slot.id,
             doctorId: slot.doctorId,
             patientId: patient.id,

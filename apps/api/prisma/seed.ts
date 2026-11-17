@@ -28,7 +28,7 @@ const DOCTORS = [
     specialization: 'General Medicine',
     feeInr: 500,
     slotMinutes: 20,
-    bio: 'General physician with 12 years of experience in family medicine.',
+    bio: 'General physician with 12 years of experience in family medicine. Fever, cold, cough, diabetes and routine check-ups.',
     hours: [...weekdays(MON_SAT, '09:00', '13:00'), ...weekdays(MON_FRI, '17:00', '20:00')],
   },
   {
@@ -55,7 +55,7 @@ const DOCTORS = [
     specialization: 'Pediatrics',
     feeInr: 600,
     slotMinutes: 20,
-    bio: 'Pediatrician. Vaccinations, growth checks and childhood illnesses.',
+    bio: 'Pediatrician for babies, children and kids. Vaccinations, growth checks, child fever and childhood illnesses.',
     hours: [...weekdays(MON_FRI, '09:30', '12:30'), ...weekdays(MON_FRI, '16:00', '19:00')],
   },
   {

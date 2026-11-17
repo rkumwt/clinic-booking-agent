@@ -1,12 +1,25 @@
 {
-  "preset": "ts-jest",
   "testEnvironment": "node",
   "rootDir": "..",
   "testRegex": "test/.*\\.e2e-spec\\.ts$",
   "testTimeout": 30000,
   "globalSetup": "<rootDir>/test/global-setup.ts",
-  "setupFiles": ["<rootDir>/test/setup-env.ts"],
+  "setupFiles": [
+    "<rootDir>/test/setup-env.ts"
+  ],
   "moduleNameMapper": {
-    "^@clinic/shared$": "<rootDir>/../../packages/shared/src"
+    "^@clinic/(shared|agent|llm)$": "<rootDir>/../../packages/$1/src"
+  },
+  "transform": {
+    "^.+\\.ts$": [
+      "ts-jest",
+      {
+        "diagnostics": {
+          "ignoreCodes": [
+            "TS151002"
+          ]
+        }
+      }
+    ]
   }
 }

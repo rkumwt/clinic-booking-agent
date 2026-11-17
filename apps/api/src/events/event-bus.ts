@@ -10,7 +10,10 @@ export type DomainEvent =
   | { type: 'booking.cancelled'; bookingId: string; doctorId: string; slotId: string }
   | { type: 'booking.rescheduled'; bookingId: string; doctorId: string; fromSlotId: string; toSlotId: string }
   | { type: 'payment.paid'; bookingId: string; paymentId: string }
-  | { type: 'payment.failed'; bookingId: string; paymentId: string };
+  | { type: 'payment.failed'; bookingId: string; paymentId: string }
+  | { type: 'approval.requested'; approvalId: string; threadId: string }
+  | { type: 'approval.decided'; approvalId: string; threadId: string; approved: boolean }
+  | { type: 'agent.handoff'; threadId: string; reason: string };
 
 export type EventType = DomainEvent['type'];
 export type EventOf<T extends EventType> = Extract<DomainEvent, { type: T }>;

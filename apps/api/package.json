@@ -18,7 +18,12 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@clinic/agent": "workspace:^",
+    "@clinic/llm": "workspace:^",
     "@clinic/shared": "workspace:*",
+    "@langchain/core": "^1.4.1",
+    "@langchain/langgraph": "^1.7.5",
+    "@langchain/langgraph-checkpoint-postgres": "^1.1.4",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
@@ -57,12 +62,23 @@
     "typescript": "~5.8.3"
   },
   "jest": {
-    "preset": "ts-jest",
     "testEnvironment": "node",
     "rootDir": ".",
     "testRegex": "src/.*\\.spec\\.ts$",
     "moduleNameMapper": {
-      "^@clinic/shared$": "<rootDir>/../../packages/shared/src"
+      "^@clinic/(shared|agent|llm)$": "<rootDir>/../../packages/$1/src"
+    },
+    "transform": {
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "diagnostics": {
+            "ignoreCodes": [
+              "TS151002"
+            ]
+          }
+        }
+      ]
     }
   }
 }

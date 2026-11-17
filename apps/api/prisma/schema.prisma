@@ -158,6 +158,7 @@ model Patient {
 // the migration SQL. It is the last line of defence against double booking.
 model Booking {
   id             String        @id @default(cuid())
+  reference      String        @unique // short code patients quote, e.g. BK-7K4Q2M
   slotId         String        @map("slot_id")
   doctorId       String        @map("doctor_id")
   patientId      String        @map("patient_id")

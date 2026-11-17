@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { AppModule } from '../src/app.module';
@@ -15,15 +15,17 @@ export interface TestContext {
   auth: AuthProvider;
 }
 
-export async function createTestApp(): Promise<TestContext> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+export async function createTestApp(
+  configure: (builder: TestingModuleBuilder) => TestingModuleBuilder = (b) => b,
+): Promise<TestContext> {
+  const moduleRef = await configure(Test.createTestingModule({ imports: [AppModule] })).compile();
   const app = moduleRef.createNestApplication();
   await app.init();
 
   const prisma = app.get(PrismaService);
   // The test database is ours alone, so start every suite from empty.
   await prisma.$executeRawUnsafe(
-    'TRUNCATE payments, bookings, slots, doctor_leaves, doctor_working_hours, doctors, patients, users CASCADE',
+    'TRUNCATE approval_requests, agent_sessions, payments, bookings, slots, doctor_leaves, doctor_working_hours, doctors, patients, users CASCADE',
   );
   await app.get(RedisService).client.flushdb();
 

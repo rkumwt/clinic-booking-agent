@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import { resolve } from 'path';
+import { AgentModule } from './agent/agent.module';
 import { AuthModule } from './auth/auth.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { Env, validateEnv } from './config/env';
@@ -42,6 +43,7 @@ import { SlotsModule } from './slots/slots.module';
     SlotsModule,
     DoctorsModule,
     BookingsModule,
+    AgentModule,
   ],
   controllers: [HealthController],
 })

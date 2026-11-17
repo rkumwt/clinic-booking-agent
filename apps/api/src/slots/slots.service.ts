@@ -213,6 +213,20 @@ export class SlotsService {
     return { released: count > 0 };
   }
 
+  /**
+   * A conversation holds one slot at a time. When the patient changes their
+   * mind and picks another time, the earlier hold is given back immediately
+   * rather than blocking that slot for ten minutes.
+   */
+  async releaseOtherHolds(holderKey: string, keepSlotId: string): Promise<number> {
+    const others = await this.prisma.slot.findMany({
+      where: { status: 'HELD', heldBy: holderKey, id: { not: keepSlotId } },
+      select: { id: true },
+    });
+    for (const s of others) await this.releaseHold(s.id, holderKey);
+    return others.length;
+  }
+
   /** Called by the scheduler every minute. */
   async releaseExpiredHolds(): Promise<number> {
     const now = new Date();
