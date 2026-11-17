@@ -101,6 +101,13 @@ pnpm test:e2e    # Supertest e2e against a separate clinic_test database
 The e2e suite creates and migrates `clinic_test` on its own and uses Redis
 database 1, so it never touches dev data.
 
+### CI
+
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`:
+install, typecheck, unit tests, e2e tests (against Postgres and Redis service
+containers) and build. Work happens on a branch per phase, named with the phase
+number first (for example `3-agent-langgraph`), and merges through a pull request.
+
 ### Trying it by hand
 
 Seeded logins are `SEED_ADMIN_EMAIL` and the doctor emails in
